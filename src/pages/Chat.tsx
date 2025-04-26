@@ -1,127 +1,19 @@
 
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useLanguageContent } from "@/hooks/useLanguageContent";
-import { MessageSquare, Search } from "lucide-react";
-import ChatBox from "@/components/ChatBox";
-
-interface ChatPreview {
-  id: string;
-  recipientId: string;
-  recipientName: string;
-  recipientAvatar?: string;
-  lastMessage: string;
-  timestamp: Date;
-  unread: boolean;
-}
-
-interface ChatDetailProps {
-  chatId: string;
-  recipientId: string;
-}
-
-// Mock data
-const MOCK_CHATS: Record<string, ChatPreview[]> = {
-  "customer-1": [
-    {
-      id: "chat-1",
-      recipientId: "driver-1",
-      recipientName: "John Driver",
-      recipientAvatar: "/placeholder.svg",
-      lastMessage: "Yes, I can pick up your goods at 3pm",
-      timestamp: new Date(),
-      unread: true,
-    },
-    {
-      id: "chat-2",
-      recipientId: "driver-2",
-      recipientName: "Sarah Smith",
-      recipientAvatar: "/placeholder.svg",
-      lastMessage: "The price would be $120 for that distance",
-      timestamp: new Date(Date.now() - 3600000),
-      unread: false,
-    },
-  ],
-  "driver-1": [
-    {
-      id: "chat-1",
-      recipientId: "customer-1",
-      recipientName: "Customer User",
-      lastMessage: "Yes, I can pick up your goods at 3pm",
-      timestamp: new Date(),
-      unread: true,
-    },
-    {
-      id: "chat-2",
-      recipientId: "customer-2",
-      recipientName: "Jane Doe",
-      lastMessage: "When will you arrive?",
-      timestamp: new Date(Date.now() - 3600000),
-      unread: false,
-    },
-  ],
-};
-
-// Mock messages for any chat
-const getMockMessages = (senderId: string, recipientId: string) => [
-  {
-    id: "msg-1",
-    senderId: recipientId,
-    senderName: "Recipient",
-    content: "Hello, I need transportation services.",
-    timestamp: new Date(Date.now() - 3600000 * 2),
-  },
-  {
-    id: "msg-2",
-    senderId: senderId,
-    senderName: "Sender",
-    content: "Hi there! I can help with that. What do you need?",
-    timestamp: new Date(Date.now() - 3600000 * 1.5),
-  },
-  {
-    id: "msg-3",
-    senderId: recipientId,
-    senderName: "Recipient",
-    content: "I need to transport goods from Location A to Location B.",
-    timestamp: new Date(Date.now() - 3600000),
-  },
-  {
-    id: "msg-4",
-    senderId: senderId,
-    senderName: "Sender",
-    content: "I can do that. When do you need this service?",
-    timestamp: new Date(Date.now() - 3600000 * 0.5),
-  },
-];
-
-const ChatDetail: React.FC<ChatDetailProps> = ({ chatId, recipientId }) => {
-  const { user } = useAuth();
-  const { getChatContent } = useLanguageContent();
-  const chatContent = getChatContent();
-  
-  // Generate mock messages based on current user and recipient
-  const initialMessages = getMockMessages(user?.id || "unknown", recipientId);
-
-  return (
-    <div className="h-full">
-      <ChatBox
-        chatId={chatId}
-        recipientId={recipientId}
-        recipientName={recipientId === "customer-1" ? "Customer User" : 
-                      recipientId === "customer-2" ? "Jane Doe" : 
-                      recipientId === "driver-1" ? "John Driver" : "Sarah Smith"}
-        recipientAvatar="/placeholder.svg"
-        initialMessages={initialMessages}
-      />
-    </div>
-  );
-};
+import Layout from "@/components/Layout";
+import { ChatPreview, TrackedConversation } from "@/types/chat";
+import { MOCK_CHATS } from "@/utils/mockChats";
+import ChatSearchBar from "@/components/chat/ChatSearchBar";
+import ChatWelcome from "@/components/chat/ChatWelcome";
+import ChatDetail from "@/components/chat/ChatDetail";
+import { toast } from "sonner";
+import { Trash2, MessageSquare } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 
 const Chat = () => {
   const { user } = useAuth();
@@ -134,28 +26,64 @@ const Chat = () => {
   const [chats, setChats] = useState<ChatPreview[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [selectedRecipientId, setSelectedRecipientId] = useState<string | null>(null);
+  const [storedMessages, setStoredMessages] = useState<{[key: string]: TrackedConversation}>({});
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [chatToDelete, setChatToDelete] = useState<string | null>(null);
 
+  // Load saved conversations from localStorage
   useEffect(() => {
-    // In a real app, fetch chats from API
-    if (user) {
-      setChats(MOCK_CHATS[user.id] || []);
+    const savedConversations = localStorage.getItem('savedConversations');
+    if (savedConversations) {
+      setStoredMessages(JSON.parse(savedConversations));
     }
-  }, [user]);
+  }, []);
+
+  // Save conversations to localStorage whenever they change
+  useEffect(() => {
+    if (Object.keys(storedMessages).length > 0) {
+      localStorage.setItem('savedConversations', JSON.stringify(storedMessages));
+    }
+  }, [storedMessages]);
 
   useEffect(() => {
-    // If driverId is provided, find or create a chat for this driver
+    if (user) {
+      // Load chats from saved conversations if available
+      let userChats = [...MOCK_CHATS[user.id] || []];
+      
+      // Add stored conversations that aren't already in the mock chats
+      Object.values(storedMessages).forEach(conversation => {
+        const existingChatIndex = userChats.findIndex(c => c.recipientId === conversation.recipientId);
+        
+        if (existingChatIndex === -1) {
+          userChats.push({
+            id: conversation.id,
+            recipientId: conversation.recipientId,
+            recipientName: conversation.recipientName,
+            recipientAvatar: conversation.recipientAvatar,
+            lastMessage: conversation.lastMessage,
+            timestamp: new Date(conversation.timestamp),
+            unread: conversation.unread,
+          });
+        }
+      });
+      
+      // Sort chats by timestamp (newest first)
+      userChats.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      setChats(userChats);
+    }
+  }, [user, storedMessages]);
+
+  useEffect(() => {
     if (driverId && user) {
       const existingChat = chats.find(chat => chat.recipientId === driverId);
       if (existingChat) {
         setSelectedChatId(existingChat.id);
         setSelectedRecipientId(driverId);
       } else {
-        // In a real app, we'd create a new chat in the database
         const newChatId = `chat-${Date.now()}`;
         setSelectedChatId(newChatId);
         setSelectedRecipientId(driverId);
         
-        // Add the new chat to the list
         const newChat: ChatPreview = {
           id: newChatId,
           recipientId: driverId,
@@ -178,119 +106,116 @@ const Chat = () => {
   const handleChatSelect = (chat: ChatPreview) => {
     setSelectedChatId(chat.id);
     setSelectedRecipientId(chat.recipientId);
-    // Update URL to include the recipient ID
     navigate(`/chat/${chat.recipientId}`);
   };
 
-  return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-4">{chatContent.title}</h1>
-        <p className="text-gray-600">
-          {chatContent.subtitle}
-        </p>
-      </div>
+  const handleDeleteChat = (chatId: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    setChatToDelete(chatId);
+    setDeleteDialogOpen(true);
+  };
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 h-[70vh]">
-        <div className="md:col-span-1">
-          <Card className="h-full flex flex-col">
-            <div className="p-4 border-b">
-              <div className="relative">
-                <Input
-                  placeholder={chatContent.searchPlaceholder}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto">
-              {filteredChats.length > 0 ? (
-                <div className="divide-y">
-                  {filteredChats.map((chat) => (
-                    <Button
-                      key={chat.id}
-                      variant="ghost"
-                      className={`w-full justify-start rounded-none py-3 px-4 h-auto ${
-                        selectedChatId === chat.id
-                          ? "bg-moprd-teal/10 border-l-4 border-moprd-teal"
-                          : ""
-                      }`}
-                      onClick={() => handleChatSelect(chat)}
-                    >
-                      <div className="flex items-center w-full">
-                        <div className="relative">
-                          <img
-                            src={chat.recipientAvatar || "/placeholder.svg"}
-                            alt={chat.recipientName}
-                            className="w-10 h-10 rounded-full mr-3"
-                          />
-                          {chat.unread && (
-                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-moprd-teal rounded-full"></div>
-                          )}
-                        </div>
-                        <div className="flex-1 text-left">
-                          <div className="flex justify-between">
-                            <span className="font-medium">{chat.recipientName}</span>
-                            <span className="text-xs text-gray-500">
-                              {new Date(chat.timestamp).toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-600 truncate">
-                            {chat.lastMessage}
-                          </p>
-                        </div>
-                      </div>
-                    </Button>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full text-center p-4">
-                  <MessageSquare className="h-12 w-12 text-gray-300 mb-4" />
-                  <h3 className="text-xl font-medium mb-2">{chatContent.noConversations}</h3>
-                  <p className="text-gray-500">
-                    {user?.role === "customer"
-                      ? chatContent.findTrucksPrompt
-                      : chatContent.waitCustomers}
-                  </p>
-                  {user?.role === "customer" && (
-                    <Button 
-                      className="mt-4 bg-moprd-teal hover:bg-moprd-blue"
-                      onClick={() => navigate("/find-trucks")}
-                    >
-                      {chatContent.title}
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-          </Card>
+  const confirmDeleteChat = () => {
+    if (chatToDelete) {
+      // Remove from chats list
+      const updatedChats = chats.filter(chat => chat.id !== chatToDelete);
+      setChats(updatedChats);
+      
+      // Remove from stored messages
+      const updatedStoredMessages = {...storedMessages};
+      delete updatedStoredMessages[chatToDelete];
+      setStoredMessages(updatedStoredMessages);
+      
+      // If the deleted chat was selected, clear selection
+      if (selectedChatId === chatToDelete) {
+        setSelectedChatId(null);
+        setSelectedRecipientId(null);
+        navigate('/chat');
+      }
+      
+      toast.success(language === 'en' ? "Conversation deleted" : "تم حذف المحادثة");
+      setDeleteDialogOpen(false);
+      setChatToDelete(null);
+    }
+  };
+
+  const handleSaveMessages = (chatId: string, conversation: TrackedConversation) => {
+    setStoredMessages(prev => ({
+      ...prev,
+      [chatId]: conversation
+    }));
+  };
+
+  return (
+    <Layout>
+      <div className="container mx-auto px-4 py-8 pb-24">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-4">{chatContent.title}</h1>
+          <p className="text-gray-600">{chatContent.subtitle}</p>
         </div>
 
-        <div className="md:col-span-2">
-          <Card className="h-full overflow-hidden">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 h-[70vh]">
+          <div className="md:col-span-1">
+            <ChatSearchBar
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              filteredChats={filteredChats.map(chat => ({
+                ...chat,
+                onDelete: (e) => handleDeleteChat(chat.id, e)
+              }))}
+              selectedChatId={selectedChatId}
+              onChatSelect={handleChatSelect}
+            />
+          </div>
+
+          <div className="md:col-span-2">
             {selectedChatId && selectedRecipientId ? (
               <ChatDetail 
                 chatId={selectedChatId} 
                 recipientId={selectedRecipientId}
+                onSaveMessages={(conversation) => handleSaveMessages(selectedChatId, conversation)}
+                savedMessages={storedMessages[selectedChatId]?.messages || []}
               />
             ) : (
-              <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                <MessageSquare className="h-16 w-16 text-gray-300 mb-4" />
-                <h3 className="text-2xl font-medium mb-2">{chatContent.selectConversation}</h3>
-                <p className="text-gray-500">
-                  {chatContent.selectPrompt}
-                </p>
-              </div>
+              <ChatWelcome />
             )}
-          </Card>
+          </div>
         </div>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {language === 'en' ? "Delete Conversation" : "حذف المحادثة"}
+              </DialogTitle>
+              <DialogDescription>
+                {language === 'en' 
+                  ? "Are you sure you want to delete this conversation? This action cannot be undone."
+                  : "هل أنت متأكد أنك تريد حذف هذه المحادثة؟ لا يمكن التراجع عن هذا الإجراء."}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button 
+                variant="outline" 
+                onClick={() => setDeleteDialogOpen(false)}
+              >
+                {language === 'en' ? "Cancel" : "إلغاء"}
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={confirmDeleteChat}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                {language === 'en' ? "Delete" : "حذف"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
-    </div>
+    </Layout>
   );
 };
 

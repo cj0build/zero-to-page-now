@@ -1,7 +1,11 @@
 
 import React from "react";
-import Navbar from "./Navbar";
 import { useLocation } from "react-router-dom";
+import AppNavbar from "./AppNavbar";
+import BottomNavbar from "./BottomNavbar";
+import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "next-themes";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -9,24 +13,65 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
+  const { user } = useAuth();
+  const { theme } = useTheme();
+  const { language } = useLanguage();
   
   // Check if the current page is login or register
   const isAuthPage = 
     location.pathname === "/login" || 
-    location.pathname === "/register";
+    location.pathname === "/register" ||
+    location.pathname === "/forgot-password";
+    
+  // Check if we're on a chat page
+  const isChatPage = location.pathname.includes('/chat/');
+  
+  // Get translations based on current language
+  const translations = {
+    copyright: language === 'en' 
+      ? "© 2025 Zakart. All rights reserved." 
+      : "© 2025 زكرت. جميع الحقوق محفوظة.",
+    tagline: language === 'en'
+      ? "Connecting refrigerated trucks with customers."
+      : "ربط الشاحنات المبردة بالعملاء."
+  };
   
   return (
-    <div className="flex flex-col min-h-screen" dir="rtl">
-      {!isAuthPage && <Navbar />}
-      <main className={isAuthPage ? "flex-grow" : "flex-grow pt-4"}>
+    <div 
+      className={`flex flex-col min-h-screen ${
+        theme === 'dark' 
+          ? 'bg-gray-950 text-gray-100' 
+          : 'bg-white text-black'
+      }`} 
+      dir={language === 'en' ? "ltr" : "rtl"}
+    >
+      {!isAuthPage && (
+        <AppNavbar />
+      )}
+      
+      <main className={`flex-grow ${!isAuthPage ? "pt-20 pb-20" : ""} w-full max-w-7xl mx-auto px-4 sm:px-6`}>
         {children}
       </main>
-      {!isAuthPage && (
-        <footer className="bg-white border-t py-6 mt-16">
+      
+      {!isAuthPage && user && (
+        <BottomNavbar />
+      )}
+      
+      {/* Footer only shows on non-auth pages and non-chat pages */}
+      {!isAuthPage && !isChatPage && (
+        <footer className={`${
+          theme === 'dark' 
+            ? 'bg-gray-900 border-gray-800' 
+            : 'bg-background border-gray-200'
+        } border-t py-6 mt-auto`}> {/* Added mt-auto to push it to the bottom */}
           <div className="container mx-auto px-4">
-            <div className="text-center text-sm text-gray-600">
-              <p>&copy; 2025 زكرت. جميع الحقوق محفوظة.</p>
-              <p className="mt-1">ربط الشاحنات المبردة بالعملاء.</p>
+            <div className={`text-center text-sm ${
+              theme === 'dark' 
+                ? 'text-gray-400' 
+                : 'text-muted-foreground'
+            }`}>
+              <p>{translations.copyright}</p>
+              <p className="mt-1">{translations.tagline}</p>
             </div>
           </div>
         </footer>

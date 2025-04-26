@@ -1,113 +1,86 @@
 
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { 
   Home, 
   Truck, 
   MessageSquare, 
-  FileText, 
-  User,
-  Globe,
-  ChevronUp
+  Map,
 } from "lucide-react";
 
-import {
-  Sheet,
-  SheetContent,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-
-interface BottomNavbarProps {
-  onLanguageChange: (language: string) => void;
-  currentLanguage: string;
-}
-
-const BottomNavbar: React.FC<BottomNavbarProps> = ({ onLanguageChange, currentLanguage }) => {
+const BottomNavbar = () => {
   const { user } = useAuth();
-  const [showLanguageSelector, setShowLanguageSelector] = React.useState(false);
+  const location = useLocation();
+  const { language } = useLanguage();
   
   if (!user) {
     return null;
   }
 
-  const languages = [
-    { value: "ar", label: "العربية" },
-    { value: "en", label: "English" },
-    { value: "fr", label: "Français" },
-    { value: "es", label: "Español" },
-    { value: "ur", label: "اردو" }
-  ];
+  const isActive = (path: string) => {
+    return location.pathname === path;
+  };
+
+  // Get translations based on current language
+  const translations = {
+    home: language === 'en' ? "Home" : "الرئيسية",
+    trucks: language === 'en' ? "Trucks" : "شاحنات",
+    trips: language === 'en' ? "Trips" : "رحلات",
+    messages: language === 'en' ? "Messages" : "الرسائل",
+    map: language === 'en' ? "Map" : "خريطة"
+  };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50">
+    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50 dark:bg-background dark:border-border">
       <nav className="flex items-center justify-around h-16">
         <Link
           to="/"
-          className="flex flex-col items-center justify-center w-full h-full text-gray-600 hover:text-moprd-teal"
+          className={`flex flex-col items-center justify-center w-full h-full ${
+            isActive("/") 
+              ? "text-moprd-teal shadow-[0_-2px_8px_rgba(0,200,200,0.4)] font-bold" 
+              : "text-gray-600 hover:text-moprd-teal dark:text-gray-300 dark:hover:text-moprd-teal"
+          }`}
         >
-          <Home size={20} />
-          <span className="text-xs mt-1">الرئيسية</span>
+          <Home size={20} className={isActive("/") ? "filter drop-shadow-[0_0_2px_rgba(0,200,200,0.8)]" : ""} />
+          <span className="text-xs mt-1">{translations.home}</span>
         </Link>
         
         <Link
           to={user.role === "customer" ? "/find-trucks" : "/dashboard"}
-          className="flex flex-col items-center justify-center w-full h-full text-gray-600 hover:text-moprd-teal"
+          className={`flex flex-col items-center justify-center w-full h-full ${
+            isActive(user.role === "customer" ? "/find-trucks" : "/dashboard")
+              ? "text-moprd-teal shadow-[0_-2px_8px_rgba(0,200,200,0.4)] font-bold" 
+              : "text-gray-600 hover:text-moprd-teal dark:text-gray-300 dark:hover:text-moprd-teal"
+          }`}
         >
-          <Truck size={20} />
-          <span className="text-xs mt-1">{user.role === "customer" ? "شاحنات" : "رحلات"}</span>
+          <Truck size={20} className={isActive(user.role === "customer" ? "/find-trucks" : "/dashboard") ? "filter drop-shadow-[0_0_2px_rgba(0,200,200,0.8)]" : ""} />
+          <span className="text-xs mt-1">{user.role === "customer" ? translations.trucks : translations.trips}</span>
         </Link>
-        
-        <Sheet>
-          <SheetTrigger asChild>
-            <button className="flex flex-col items-center justify-center w-full h-full text-gray-600 hover:text-moprd-teal">
-              <Globe size={20} />
-              <span className="text-xs mt-1">اللغة</span>
-            </button>
-          </SheetTrigger>
-          <SheetContent side="bottom" className="h-64">
-            <div className="flex flex-col items-center justify-center h-full">
-              <h3 className="text-lg font-medium mb-4">اختر اللغة</h3>
-              <div className="w-full max-w-xs">
-                <Select value={currentLanguage} onValueChange={onLanguageChange}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="اختر اللغة" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {languages.map((lang) => (
-                      <SelectItem key={lang.value} value={lang.value}>
-                        {lang.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </SheetContent>
-        </Sheet>
         
         <Link
           to="/chat"
-          className="flex flex-col items-center justify-center w-full h-full text-gray-600 hover:text-moprd-teal"
+          className={`flex flex-col items-center justify-center w-full h-full ${
+            location.pathname.includes("/chat")
+              ? "text-moprd-teal shadow-[0_-2px_8px_rgba(0,200,200,0.4)] font-bold" 
+              : "text-gray-600 hover:text-moprd-teal dark:text-gray-300 dark:hover:text-moprd-teal"
+          }`}
         >
-          <MessageSquare size={20} />
-          <span className="text-xs mt-1">الرسائل</span>
+          <MessageSquare size={20} className={location.pathname.includes("/chat") ? "filter drop-shadow-[0_0_2px_rgba(0,200,200,0.8)]" : ""} />
+          <span className="text-xs mt-1">{translations.messages}</span>
         </Link>
         
         <Link
-          to="/profile"
-          className="flex flex-col items-center justify-center w-full h-full text-gray-600 hover:text-moprd-teal"
+          to="/map"
+          className={`flex flex-col items-center justify-center w-full h-full ${
+            location.pathname === "/map"
+              ? "text-moprd-teal shadow-[0_-2px_8px_rgba(0,200,200,0.4)] font-bold" 
+              : "text-gray-600 hover:text-moprd-teal dark:text-gray-300 dark:hover:text-moprd-teal"
+          }`}
         >
-          <User size={20} />
-          <span className="text-xs mt-1">حسابي</span>
+          <Map size={20} className={location.pathname === "/map" ? "filter drop-shadow-[0_0_2px_rgba(0,200,200,0.8)]" : ""} />
+          <span className="text-xs mt-1">{translations.map}</span>
         </Link>
       </nav>
     </div>

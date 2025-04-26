@@ -1,7 +1,9 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
-import { toast } from "sonner";
 
-export type UserRole = "customer" | "driver";
+import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+
+// Define UserRole type
+export type UserRole = "customer" | "driver" | "admin";
 
 export interface User {
   id: string;
@@ -9,217 +11,194 @@ export interface User {
   email: string;
   role: UserRole;
   profileImage?: string;
+  phoneNumber?: string;
+  provider?: "email" | "oauth";
+  isAdmin?: boolean;
+  bucketPoints?: number;
 }
 
-interface DriverDetails {
-  truckModel?: string;
-  licensePlate?: string;
-  refrigerationCapacity?: string;
-  truckImages?: string[];
-  location?: {
-    lat: number;
-    lng: number;
-  };
-  available?: boolean;
+interface ProfileUpdateData {
+  name?: string;
+  email?: string;
+  phoneNumber?: string;
+  profileImage?: string;
+  bucketPoints?: number;
 }
 
-export interface AuthContextType {
+interface AuthContextType {
   user: User | null;
-  driverDetails: DriverDetails | null;
-  isLoading: boolean;
-  login: (email: string, password: string, role: UserRole) => Promise<void>;
-  register: (name: string, email: string, password: string, role: UserRole) => Promise<void>;
+  login: (email: string, password: string) => Promise<boolean>;
+  register: (data: { name: string, email: string, password: string, role: UserRole }) => Promise<void>;
   logout: () => void;
-  updateDriverDetails: (details: Partial<DriverDetails>) => void;
-  resetPassword: (email: string) => Promise<void>; // Added resetPassword function
+  resetPassword: (email: string) => Promise<boolean>;
+  isAdmin: boolean;
+  isLoading: boolean;
+  error: string | null;
+  updateUserProfile?: (data: ProfileUpdateData) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock data for demo purposes
-const MOCK_USERS = [
-  {
-    id: "driver-1",
-    email: "driver@example.com",
-    password: "password",
-    name: "John Driver",
-    role: "driver" as UserRole,
-    profileImage: "/placeholder.svg",
-  },
-  {
-    id: "customer-1",
-    email: "customer@example.com",
-    password: "password",
-    name: "Customer User",
-    role: "customer" as UserRole,
-  },
-];
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(getUserFromLocalStorage());
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
-const MOCK_DRIVER_DETAILS = {
-  "driver-1": {
-    truckModel: "Refrigerated Truck XL",
-    licensePlate: "RF-1234",
-    refrigerationCapacity: "5 tons",
-    truckImages: ["/placeholder.svg"],
-    location: {
-      lat: 40.712776,
-      lng: -74.005974,
-    },
-    available: true,
-  },
-};
+  // Get user from localStorage during initialization
+  function getUserFromLocalStorage(): User | null {
+    const storedUser = localStorage.getItem("user");
+    return storedUser ? JSON.parse(storedUser) : null;
+  }
+  
+  // Save user to localStorage
+  function saveUserToLocalStorage(user: User | null) {
+    if (user) {
+      localStorage.setItem("user", JSON.stringify(user));
+    } else {
+      localStorage.removeItem("user");
+    }
+  }
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [driverDetails, setDriverDetails] = useState<DriverDetails | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  // Check if user is admin
+  const isAdmin = !!user && (user.role === "admin" || user.email === "admin@kotomoto.co");
 
-  // Check for saved auth on mount
+  // Update the user's role if they are admin@kotomoto.co
   useEffect(() => {
-    const savedUser = localStorage.getItem("moprd_user");
-    if (savedUser) {
-      try {
-        const parsedUser = JSON.parse(savedUser) as User;
-        setUser(parsedUser);
-        
-        // If driver, load driver details
-        if (parsedUser.role === "driver" && MOCK_DRIVER_DETAILS[parsedUser.id]) {
-          setDriverDetails(MOCK_DRIVER_DETAILS[parsedUser.id]);
-        }
-      } catch (error) {
-        console.error("Failed to parse saved user:", error);
-      }
+    if (user && user.email === "admin@kotomoto.co" && user.role !== "admin") {
+      const updatedUser = {
+        ...user,
+        role: "admin" as UserRole,
+        isAdmin: true
+      };
+      setUser(updatedUser);
+      saveUserToLocalStorage(updatedUser);
     }
-    setIsLoading(false);
-  }, []);
+  }, [user]);
 
-  const login = async (email: string, password: string, role: UserRole) => {
+  const login = async (email: string, password: string): Promise<boolean> => {
+    // This is a mock implementation
     setIsLoading(true);
+    setError(null);
     
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const foundUser = MOCK_USERS.find(
-        u => u.email === email && u.password === password && u.role === role
-      );
-      
-      if (!foundUser) {
-        throw new Error("Invalid credentials or user type");
-      }
-      
-      // Remove password from user object
-      const { password: _, ...secureUser } = foundUser;
-      
-      setUser(secureUser);
-      localStorage.setItem("moprd_user", JSON.stringify(secureUser));
-      
-      // Load driver details if applicable
-      if (role === "driver" && MOCK_DRIVER_DETAILS[secureUser.id]) {
-        setDriverDetails(MOCK_DRIVER_DETAILS[secureUser.id]);
-      }
-      
-      toast.success(`Welcome back, ${secureUser.name}!`);
-    } catch (error) {
-      toast.error(error.message || "Login failed");
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
+    return new Promise<boolean>((resolve) => {
+      setTimeout(() => {
+        try {
+          // Determine role based on email
+          let role: UserRole = "customer";
+          let isAdminUser = false;
+          
+          if (email.includes("admin") || email === "admin@kotomoto.co") {
+            role = "admin";
+            isAdminUser = true;
+          } else if (email.includes("driver")) {
+            role = "driver";
+          }
+          
+          const newUser: User = {
+            id: Math.random().toString(36).substring(2),
+            name: email.split("@")[0],
+            email,
+            role,
+            provider: "email",
+            isAdmin: isAdminUser,
+            bucketPoints: 25 // Initialize with some points
+          };
+          
+          setUser(newUser);
+          saveUserToLocalStorage(newUser);
+          setIsLoading(false);
+          resolve(true);
+        } catch (err) {
+          setError("Login failed. Please try again.");
+          setIsLoading(false);
+          resolve(false);
+        }
+      }, 1000);
+    });
   };
 
-  const register = async (name: string, email: string, password: string, role: UserRole) => {
+  const resetPassword = async (email: string): Promise<boolean> => {
     setIsLoading(true);
+    setError(null);
     
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Check if user already exists
-      const userExists = MOCK_USERS.some(u => u.email === email);
-      if (userExists) {
-        throw new Error("User already exists with this email");
-      }
-      
-      // Create new user
-      const newUser = {
-        id: `${role}-${Date.now()}`,
-        name,
-        email,
-        role,
-      };
-      
-      setUser(newUser);
-      localStorage.setItem("moprd_user", JSON.stringify(newUser));
-      
-      // Initialize empty driver details if driver
-      if (role === "driver") {
-        setDriverDetails({});
-      }
-      
-      toast.success("Account created successfully!");
-    } catch (error) {
-      toast.error(error.message || "Registration failed");
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
+    return new Promise<boolean>((resolve) => {
+      setTimeout(() => {
+        // Mock password reset process
+        setIsLoading(false);
+        // Simulate success
+        resolve(true);
+      }, 1500);
+    });
+  };
+
+  const register = async (data: { name: string, email: string, password: string, role: UserRole }): Promise<void> => {
+    // This is a mock implementation
+    setIsLoading(true);
+    setError(null);
+    
+    return new Promise<void>((resolve, reject) => {
+      setTimeout(() => {
+        try {
+          let isAdminUser = false;
+          let role = data.role;
+          
+          // Force admin role if the email is admin@kotomoto.co
+          if (data.email === "admin@kotomoto.co") {
+            role = "admin";
+            isAdminUser = true;
+          }
+          
+          const newUser: User = {
+            id: Math.random().toString(36).substring(2),
+            name: data.name,
+            email: data.email,
+            role,
+            provider: "email",
+            isAdmin: isAdminUser || role === "admin",
+            bucketPoints: 0 // Start with zero points for new users
+          };
+          
+          setUser(newUser);
+          saveUserToLocalStorage(newUser);
+          setIsLoading(false);
+          resolve();
+        } catch (err) {
+          setError("Registration failed. Please try again.");
+          setIsLoading(false);
+          reject(err);
+        }
+      }, 1000);
+    });
   };
 
   const logout = () => {
     setUser(null);
-    setDriverDetails(null);
-    localStorage.removeItem("moprd_user");
-    toast.info("You've been logged out");
+    saveUserToLocalStorage(null);
   };
-
-  const updateDriverDetails = (details: Partial<DriverDetails>) => {
-    if (user?.role !== "driver") return;
-    
-    setDriverDetails(prev => ({ ...prev, ...details }));
-    toast.success("Driver details updated");
-  };
-
-  // Add resetPassword function
-  const resetPassword = async (email: string): Promise<void> => {
-    setIsLoading(true);
-    
-    try {
-      // Simulate API call for password reset
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Check if email exists in mock users
-      const userExists = MOCK_USERS.some(u => u.email === email);
-      if (!userExists) {
-        // Still return success to prevent email enumeration attacks
-        console.log("User not found, but returning success for security");
-      }
-      
-      // In a real app, this would send a reset email
-      console.log(`Password reset link would be sent to: ${email}`);
-      
-      toast.success("تم إرسال رابط إعادة تعيين كلمة المرور");
-    } catch (error) {
-      toast.error("فشل إرسال رابط إعادة تعيين كلمة المرور");
-      throw error;
-    } finally {
-      setIsLoading(false);
+  
+  const updateUserProfile = (data: ProfileUpdateData) => {
+    if (user) {
+      const updatedUser = {
+        ...user,
+        ...data
+      };
+      setUser(updatedUser);
+      saveUserToLocalStorage(updatedUser);
     }
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        driverDetails,
-        isLoading,
-        login,
-        register,
-        logout,
-        updateDriverDetails,
-        resetPassword, // Add the new function to the context
-      }}
-    >
+    <AuthContext.Provider value={{ 
+      user, 
+      login, 
+      register, 
+      logout, 
+      resetPassword,
+      isAdmin, 
+      isLoading,
+      error,
+      updateUserProfile 
+    }}>
       {children}
     </AuthContext.Provider>
   );

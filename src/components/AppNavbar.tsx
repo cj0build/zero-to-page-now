@@ -1,164 +1,53 @@
-
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { useAuth } from "@/contexts/AuthContext";
-import { Moon, Sun, UserCircle, LogOut, Menu } from "lucide-react";
 import { useTheme } from "next-themes";
-import LanguageSelector from "@/components/LanguageSelector";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import NavigationLinks from "@/components/navigation/NavigationLinks";
+import UserMenu from "@/components/navigation/UserMenu";
+import MobileMenu from "@/components/navigation/MobileMenu";
+import { useLanguage } from "@/contexts/LanguageContext";
 
-const AppNavbar = () => {
-  const { user, logout } = useAuth();
-  const { theme, setTheme } = useTheme();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+interface AppNavbarProps {
+  className?: string;
+}
 
-  const toggleTheme = () => {
-    setTheme(theme === "dark" ? "light" : "dark");
-  };
+const AppNavbar: React.FC<AppNavbarProps> = ({ className }) => {
+  const { theme } = useTheme();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { language } = useLanguage();
 
   return (
-    <header className="fixed top-0 right-0 left-0 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md z-50 border-b border-gray-200 dark:border-gray-700">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <div className="flex items-center gap-2 md:gap-4">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="text-2xl font-bold text-moprd-teal dark:text-cyan-400">زكرت</div>
-          </Link>
-          
-          <nav className="hidden md:flex items-center gap-6">
-            <Link
-              to="/find-trucks"
-              className="text-moprd-blue hover:text-moprd-teal dark:text-gray-300 dark:hover:text-white transition-colors text-sm"
-            >
-              البحث عن شاحنات
+    <header className={`fixed w-full top-0 z-50 ${
+      theme === 'dark' 
+        ? 'bg-gray-900 border-gray-800 text-white' 
+        : 'bg-white border-gray-200 text-black'
+    } border-b shadow-sm`}>
+      <div className="container mx-auto px-4">
+        <div className="flex items-center justify-between h-16">
+          <MobileMenu 
+            isOpen={isMenuOpen} 
+            onToggle={() => setIsMenuOpen(!isMenuOpen)} 
+            theme={theme || 'light'} 
+          />
+  
+          {/* Logo */}
+          <div className="flex-1 flex justify-center md:justify-start">
+            <Link to="/" className="flex items-center">
+              <span className="text-xl font-bold text-moprd-teal">
+                {language === 'ar' ? "زكرت" : "Zakart"}
+              </span>
             </Link>
-            {user?.role === "driver" ? (
-              <Link
-                to="/dashboard"
-                className="text-moprd-blue hover:text-moprd-teal dark:text-gray-300 dark:hover:text-white transition-colors text-sm"
-              >
-                لوحة التحكم
-              </Link>
-            ) : (
-              <Link
-                to="/customer-dashboard"
-                className="text-moprd-blue hover:text-moprd-teal dark:text-gray-300 dark:hover:text-white transition-colors text-sm"
-              >
-                لوحة التحكم
-              </Link>
-            )}
-            <Link
-              to="/invoices"
-              className="text-moprd-blue hover:text-moprd-teal dark:text-gray-300 dark:hover:text-white transition-colors text-sm"
-            >
-              الفواتير
-            </Link>
-          </nav>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <LanguageSelector />
-          
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleTheme}
-            className="rounded-full"
-          >
-            {theme === "dark" ? (
-              <Sun className="h-5 w-5" />
-            ) : (
-              <Moon className="h-5 w-5" />
-            )}
-          </Button>
-
-          {user ? (
-            <>
-              <Link to="/profile">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="rounded-full"
-                >
-                  <UserCircle className="h-5 w-5" />
-                </Button>
-              </Link>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => logout()}
-                className="rounded-full"
-              >
-                <LogOut className="h-5 w-5" />
-              </Button>
-            </>
-          ) : (
-            <Link to="/login">
-              <Button variant="outline" size="sm" className="hidden md:flex">
-                تسجيل الدخول
-              </Button>
-            </Link>
-          )}
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          >
-            <Menu className="h-6 w-6" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Mobile menu */}
-      {isMobileMenuOpen && (
-        <div className="md:hidden bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-          <div className="container mx-auto px-4 py-3">
-            <nav className="flex flex-col space-y-3">
-              <Link
-                to="/find-trucks"
-                className="text-moprd-blue hover:text-moprd-teal dark:text-gray-300 dark:hover:text-white transition-colors py-2"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                البحث عن شاحنات
-              </Link>
-              {user?.role === "driver" ? (
-                <Link
-                  to="/dashboard"
-                  className="text-moprd-blue hover:text-moprd-teal dark:text-gray-300 dark:hover:text-white transition-colors py-2"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  لوحة التحكم
-                </Link>
-              ) : (
-                <Link
-                  to="/customer-dashboard"
-                  className="text-moprd-blue hover:text-moprd-teal dark:text-gray-300 dark:hover:text-white transition-colors py-2"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  لوحة التحكم
-                </Link>
-              )}
-              <Link
-                to="/invoices"
-                className="text-moprd-blue hover:text-moprd-teal dark:text-gray-300 dark:hover:text-white transition-colors py-2"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                الفواتير
-              </Link>
-              {!user && (
-                <Link
-                  to="/login"
-                  className="text-moprd-blue hover:text-moprd-teal dark:text-gray-300 dark:hover:text-white transition-colors py-2"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  تسجيل الدخول
-                </Link>
-              )}
-            </nav>
+          </div>
+  
+          <NavigationLinks />
+  
+          {/* Right side actions */}
+          <div className="flex items-center">
+            <ThemeToggle />
+            <UserMenu />
           </div>
         </div>
-      )}
+      </div>
     </header>
   );
 };

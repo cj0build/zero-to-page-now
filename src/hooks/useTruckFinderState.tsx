@@ -8,12 +8,14 @@ export interface RequestDetails {
   destination: string;
   distance: number;
   estimatedPrice: number;
-  truckType?: string;
+  truckType: string;
   daysSelected?: number;
   truckSize?: string;
   excavatorHeadType?: string;
   flatbedDeliveryOption?: string;
   refrigeratedOption?: string;
+  useMapSelection?: boolean;
+  selectedMapLocation?: { lat: number; lng: number };
 }
 
 export interface TruckOffer {
@@ -38,19 +40,15 @@ export const useTruckFinderState = () => {
   const [completedOrders, setCompletedOrders] = useState(0);
 
   useEffect(() => {
-    // Check if user has made at least 7 orders for discount eligibility
     if (user) {
-      // In a real app, this would be fetched from the backend
-      // Simulated previous orders count based on user ID
       const previousOrders = user.id ? (parseInt(user.id.substring(0, 2), 16) % 10) : 0;
       setCompletedOrders(previousOrders);
-      setHasDiscount(previousOrders >= 7); // Changed from 2 to 7 for discount eligibility
+      setHasDiscount(previousOrders >= 7);
     }
   }, [user]);
 
   useEffect(() => {
     if (requestSubmitted && requestDetails) {
-      // محاكاة استلام عروض من السائقين
       const timer = setTimeout(() => {
         let mockOffers: TruckOffer[] = [];
         
@@ -95,9 +93,12 @@ export const useTruckFinderState = () => {
         setOffers(mockOffers);
         
         toast.success("لديك عروض جديدة!", {
-          description: "تم استلام 3 عروض من السائقين القريبين"
+          description: "تم استلام 3 عروض من السائقين القريبين",
+          position: "top-right",
+          dismissible: true,
+          closeButton: true
         });
-      }, 5000);
+      }, 3000);
       
       return () => clearTimeout(timer);
     }
@@ -112,16 +113,26 @@ export const useTruckFinderState = () => {
     if (hasDiscount && !couponApplied) {
       setCouponApplied(true);
       toast.success("تم تطبيق الكوبون بنجاح!", {
-        description: "ستحصل على خصم 18% عند إتمام الطلب"
+        description: "ستحصل على خصم 18% عند إتمام الطلب",
+        position: "top-right",
+        dismissible: true,
+        closeButton: true
       });
     } else if (!hasDiscount) {
       toast.error("ليس لديك خصم متاح", {
         description: completedOrders >= 7 
           ? "حدث خطأ في تطبيق الخصم، حاول مرة أخرى"
-          : `يمكنك الحصول على خصم 18% بعد إتمام 7 طلبات (${completedOrders}/7)`
+          : `يمكنك الحصول على خصم 18% بعد إتمام 7 طلبات (${completedOrders}/7)`,
+        position: "top-right",
+        dismissible: true,
+        closeButton: true
       });
     } else {
-      toast.info("تم تطبيق الكوبون بالفعل");
+      toast.info("تم تطبيق الكوبون بالفعل", {
+        position: "top-right",
+        dismissible: true,
+        closeButton: true
+      });
     }
   };
 
